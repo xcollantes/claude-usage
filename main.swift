@@ -216,7 +216,7 @@ func menuTitle(_ limits: Limits?, now: Date) -> String {
       return "–"
     }
     let left = (window.resetsAt - now.timeIntervalSince1970) / unit
-    return "\(Int(max(left, 0).rounded(.up)))\(suffix) \(percent)%"
+    return "\(percent)% \(Int(max(left, 0).rounded(.up)))\(suffix)"
   }
   let hours = text(limits?.fiveHour, unit: 3_600, suffix: "h")
   let days = text(limits?.sevenDay, unit: 86_400, suffix: "d")

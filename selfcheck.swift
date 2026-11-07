@@ -136,14 +136,14 @@ func checkText(_ c: Checks) {
   c.expect(menuTitle(nil, now: now) == "S: – · W: –", "no data")
   c.expect(
     menuTitle(Limits(fiveHour: window(23.4), sevenDay: expired), now: now)
-      == "S: 1h 23% · W: 0d 0%",
+      == "S: 23% 1h · W: 0% 0d",
     "rounds live windows and zeroes expired ones")
   c.expect(
     menuTitle(
       Limits(
         fiveHour: window(0, resets: 1_000 + 5 * 3_600),
         sevenDay: window(0, resets: 1_000 + 7 * 86_400)), now: now)
-      == "S: 5h 0% · W: 7d 0%",
+      == "S: 0% 5h · W: 0% 7d",
     "a fresh window shows its full length")
   c.expect(
     menuTitle(
@@ -151,7 +151,7 @@ func checkText(_ c: Checks) {
         fiveHour: window(8, resets: 1_000 + 4 * 3_600 + 26 * 60),
         sevenDay: window(30, resets: 1_000 + 3 * 86_400 + 21 * 3_600)),
       now: now)
-      == "S: 5h 8% · W: 4d 30%",
+      == "S: 8% 5h · W: 30% 4d",
     "time left rounds up")
 
   c.expect(percentHue(0) == 1.0 / 3, "0% is green")
@@ -159,7 +159,7 @@ func checkText(_ c: Checks) {
   c.expect(percentHue(100) == 0, "100% is red")
   c.expect(percentHue(140) == 0, "over 100% stays red")
 
-  let title = "S: 5h 50% · W: –"
+  let title = "S: 50% 5h · W: –"
   let shown = styled(title, font: .menuBarFont(ofSize: 0))
   func color(_ text: String) -> NSColor? {
     let start = NSRange(title.range(of: text)!, in: title).location
