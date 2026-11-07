@@ -1,7 +1,9 @@
 # Usage tracker
 
 Shows your Claude Code plan limits in the Mac menu bar. The title reads
-`5h 23% · 7d 41%` and turns red at 90%.
+`W: 3h 23% · D:4d 41%`: `W:` is the 5-hour window and `D:` is the 7-day window,
+each with the time left, rounded up, and the percent used. Percents run from
+green at 0% through yellow to red at 100%.
 
 ```
 5-hour  23%   resets 4:10 PM (in 2h 5m)
