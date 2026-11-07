@@ -220,7 +220,7 @@ func menuTitle(_ limits: Limits?, now: Date) -> String {
   }
   let hours = text(limits?.fiveHour, unit: 3_600, suffix: "h")
   let days = text(limits?.sevenDay, unit: 86_400, suffix: "d")
-  return "W: \(hours) · D:\(days)"
+  return "S: \(hours) · W: \(days)"
 }
 
 /// Hue for a percentage: green at 0, through yellow, to red at 100. Moving
