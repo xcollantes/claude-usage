@@ -1,5 +1,5 @@
 // Assertion checks for usage-tracker, run with --self-check.
-import Foundation
+import AppKit
 
 final class Checks {
   private(set) var failed = 0
@@ -133,19 +133,47 @@ func checkText(_ c: Checks) {
   }
   let expired = window(88, resets: 1_000)
 
-  c.expect(menuTitle(nil, now: now) == "5h – · 7d –", "no data")
+  c.expect(menuTitle(nil, now: now) == "S: – · W: –", "no data")
   c.expect(
     menuTitle(Limits(fiveHour: window(23.4), sevenDay: expired), now: now)
-      == "5h 23% · 7d 0%",
+      == "S: 23% 1h · W: 0% 0d",
     "rounds live windows and zeroes expired ones")
   c.expect(
-    !isNearLimit(Limits(fiveHour: window(89.4)), now: now), "89.4 shows 89")
+    menuTitle(
+      Limits(
+        fiveHour: window(0, resets: 1_000 + 5 * 3_600),
+        sevenDay: window(0, resets: 1_000 + 7 * 86_400)), now: now)
+      == "S: 0% 5h · W: 0% 7d",
+    "a fresh window shows its full length")
   c.expect(
-    isNearLimit(Limits(sevenDay: window(89.6)), now: now), "89.6 shows 90")
-  c.expect(
-    !isNearLimit(Limits(fiveHour: window(99, resets: 1_000)), now: now),
-    "an expired window is not near its limit")
-  c.expect(!isNearLimit(nil, now: now), "no data is not near a limit")
+    menuTitle(
+      Limits(
+        fiveHour: window(8, resets: 1_000 + 4 * 3_600 + 26 * 60),
+        sevenDay: window(30, resets: 1_000 + 3 * 86_400 + 21 * 3_600)),
+      now: now)
+      == "S: 8% 5h · W: 30% 4d",
+    "time left rounds up")
+
+  c.expect(percentHue(0) == 1.0 / 3, "0% is green")
+  c.expect(percentHue(50) == 1.0 / 6, "50% is yellow")
+  c.expect(percentHue(100) == 0, "100% is red")
+  c.expect(percentHue(140) == 0, "over 100% stays red")
+
+  let title = "S: 50% 5h · W: –"
+  let shown = styled(title, font: .menuBarFont(ofSize: 0))
+  func color(_ text: String) -> NSColor? {
+    let start = NSRange(title.range(of: text)!, in: title).location
+    return shown.attribute(.foregroundColor, at: start, effectiveRange: nil)
+      as? NSColor
+  }
+  c.expect(shown.string == title, "styling keeps the text")
+  c.expect(color("S:") == .labelColor, "labels keep the normal color")
+  c.expect(color("5h") == .labelColor, "time left keeps the normal color")
+  c.expect(color("–") == .labelColor, "a missing value stays normal")
+  c.expect(color("50%") != .labelColor, "the percent number is colored")
+  c.expect(color("%") != .labelColor, "the percent sign is colored")
+  let hue = color("50%")?.usingColorSpace(.sRGB)?.hueComponent ?? -1
+  c.expect(abs(hue - 1.0 / 6) < 0.01, "color follows the value: \(hue)")
 
   let tokenCases = [
     (999, "999"), (312_000, "312K"), (999_600, "1.0M"),

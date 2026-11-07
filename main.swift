@@ -3,7 +3,6 @@ import AppKit
 
 enum Config {
   static let refreshSeconds = 30.0
-  static let nearLimitPercent = 90
   static let weekSeconds = 7.0 * 86_400
   static let directory = URL(
     fileURLWithPath: ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"]
@@ -209,17 +208,49 @@ func shownPercent(_ window: LimitWindow?, now: Date) -> Int? {
   return Int(window.usedPercentage.rounded())
 }
 
+/// The title, with the time left in each window. Time rounds up so a fresh
+/// window reads 5h or 7d, and a live one never reads 0.
 func menuTitle(_ limits: Limits?, now: Date) -> String {
-  func text(_ window: LimitWindow?) -> String {
-    shownPercent(window, now: now).map { "\($0)%" } ?? "–"
+  func text(_ window: LimitWindow?, unit: Double, suffix: String) -> String {
+    guard let window, let percent = shownPercent(window, now: now) else {
+      return "–"
+    }
+    let left = (window.resetsAt - now.timeIntervalSince1970) / unit
+    return "\(percent)% \(Int(max(left, 0).rounded(.up)))\(suffix)"
   }
-  return "5h \(text(limits?.fiveHour)) · 7d \(text(limits?.sevenDay))"
+  let hours = text(limits?.fiveHour, unit: 3_600, suffix: "h")
+  let days = text(limits?.sevenDay, unit: 86_400, suffix: "d")
+  return "S: \(hours) · W: \(days)"
 }
 
-func isNearLimit(_ limits: Limits?, now: Date) -> Bool {
-  [limits?.fiveHour, limits?.sevenDay].contains {
-    (shownPercent($0, now: now) ?? 0) >= Config.nearLimitPercent
+/// Hue for a percentage: green at 0, through yellow, to red at 100. Moving
+/// through hue keeps the middle bright, where blending RGB turns it brown.
+func percentHue(_ percent: Int) -> CGFloat {
+  CGFloat(100 - min(max(percent, 0), 100)) / 300
+}
+
+/// Darker on a light menu bar, where bright yellow and green would wash out.
+private func percentColor(_ percent: Int) -> NSColor {
+  NSColor(name: nil) { appearance in
+    let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    return NSColor(
+      hue: percentHue(percent), saturation: 0.9,
+      brightness: isDark ? 1 : 0.65, alpha: 1)
   }
+}
+
+/// Styles menu text, coloring each percentage by its value.
+func styled(_ text: String, font: NSFont) -> NSAttributedString {
+  let result = NSMutableAttributedString(
+    string: text,
+    attributes: [.foregroundColor: NSColor.labelColor, .font: font])
+  for match in text.matches(of: #/(\d+)%/#) {
+    guard let percent = Int(match.1) else { continue }
+    result.addAttribute(
+      .foregroundColor, value: percentColor(percent),
+      range: NSRange(match.range, in: text))
+  }
+  return result
 }
 
 func formatTokens(_ count: Int) -> String {
@@ -339,15 +370,10 @@ final class MenuBarApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     menu.addItem(quit)
   }
 
-  /// A row with no action, kept in the normal text color for legibility.
+  /// A row with no action, styled so disabling it doesn't gray out the text.
   private func infoItem(_ text: String) -> NSMenuItem {
     let item = NSMenuItem(title: text, action: nil, keyEquivalent: "")
-    item.attributedTitle = NSAttributedString(
-      string: text,
-      attributes: [
-        .foregroundColor: NSColor.labelColor,
-        .font: NSFont.menuFont(ofSize: 0),
-      ])
+    item.attributedTitle = styled(text, font: .menuFont(ofSize: 0))
     return item
   }
 
@@ -367,20 +393,9 @@ final class MenuBarApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
   }
 
   private func updateTitle() {
-    guard let button = statusItem.button else { return }
-    let now = Date()
-    let limits = loadLimits(Config.limitsFile)
-    let title = menuTitle(limits, now: now)
-    if isNearLimit(limits, now: now) {
-      button.attributedTitle = NSAttributedString(
-        string: title,
-        attributes: [
-          .foregroundColor: NSColor.systemRed,
-          .font: NSFont.menuBarFont(ofSize: 0),
-        ])
-    } else {
-      button.title = title
-    }
+    let title = menuTitle(loadLimits(Config.limitsFile), now: Date())
+    statusItem.button?.attributedTitle = styled(
+      title, font: .menuBarFont(ofSize: 0))
   }
 }
 

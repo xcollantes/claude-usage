@@ -24,10 +24,6 @@ set_command() {
   mv "$tmp" "$SETTINGS"
 }
 
-stop_agent() {
-  launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
-}
-
 write_plist() {
   cat >"$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -72,8 +68,10 @@ do_install() {
   mv -f "$BIN.new" "$BIN"
 
   write_plist
-  stop_agent
-  launchctl bootstrap "$DOMAIN" "$PLIST"
+  # Bootstrap fails if already loaded, so restart in place instead. Booting out
+  # first would race: launchd can still be tearing down when bootstrap runs.
+  launchctl bootstrap "$DOMAIN" "$PLIST" 2>/dev/null \
+    || launchctl kickstart -k "$DOMAIN/$LABEL"
 
   if [[ "$command" != "$PREFIX"* ]]; then
     set_command "$PREFIX$command"
@@ -88,7 +86,7 @@ do_uninstall() {
   if [[ "$command" == "$PREFIX"* ]]; then
     set_command "${command#"$PREFIX"}"
   fi
-  stop_agent
+  launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
   rm -f "$PLIST" "$BIN" "$DATA_DIR/rate-limits.json"
   rmdir "$DATA_DIR" 2>/dev/null || true
   echo "Uninstalled."
