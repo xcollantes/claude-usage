@@ -1,35 +1,41 @@
 # Usage tracker
 
-Shows your Claude Code plan limits in the Mac menu bar. The title reads
-`S: 23% 3h · W: 41% 4d`: `S:` is the 5-hour session limit and `W:` is the
-weekly limit, each with the percent used and the time until it resets, rounded
-up. Percents run from green at 0% through yellow to red at 100%.
+Shows your Claude Code plan limits in the Mac menu bar.
 
-```
-5-hour  23%   resets 4:10 PM (in 2h 5m)
-7-day  41%   resets Tue 9:00 AM (in 3d 9h)
-Updated 3m ago
-─────────────
-Today  48.2M tokens (312K output)
-7 days  612M tokens (4.1M output)
-─────────────
-Quit
-```
+<img src="docs/menu-bar.png" width="171"
+  alt="Menu bar title reading S: 62% 3h · W: 33% 4d">
 
-## Install
+Click it to see reset times and token totals:
 
-You need macOS, Xcode Command Line Tools, `jq`, a Pro, Max or Ultra plan, and a
-status line already set in `~/.claude/settings.json`.
+<img src="docs/dropdown.png" width="340"
+  alt="Open dropdown with the 5-hour and 7-day percents and reset times, when
+  they last updated, token totals for today and 7 days, and Quit">
+
+_Previews rendered from the app's own title, rows and colors, using sample
+numbers. They aren't screen captures, so the bar and panel behind the text will
+look slightly different on your Mac._
+
+## Download and install
+
+You need:
+
+- macOS 13 or later (tested on macOS 26).
+- Xcode Command Line Tools: `xcode-select --install`.
+- `jq`: `brew install jq`.
+- A Claude Pro, Max or Ultra plan, because only these report limits.
+- A Claude Code status line. If you don't have one, run `/statusline` in Claude
+  Code to create one. The installer stops without it.
+
+Then download it and run the installer:
 
 ```bash
+git clone https://github.com/xcollantes/claude-usage.git
+cd claude-usage
 ./install.sh
 ```
 
-Limits appear after the next Claude Code response. To remove everything:
-
-```bash
-./install.sh uninstall
-```
+The tracker starts right away and at every login. Limits show `–` until the
+next Claude Code response.
 
 The install makes these changes:
 
@@ -37,6 +43,34 @@ The install makes these changes:
 - `~/Library/LaunchAgents/local.usage-tracker.plist`: starts it at login.
 - `~/.claude/settings.json`: adds a prefix to `statusLine.command`.
 - `~/.claude/usage-tracker/rate-limits.json`: holds the latest limits.
+
+## Use
+
+There's nothing to run: keep using Claude Code and the title updates itself.
+
+- `S:` is the 5-hour session limit and `W:` is the weekly limit.
+- Each shows the percent used, then the time until it resets, rounded up.
+  `S: 62% 3h` means 62% used, resetting within 3 hours.
+- Percents run from green at 0% through yellow to red at 100%.
+- Click the title to see exact reset times, when the limits last changed, and
+  token totals for today and the last 7 days.
+- Quit closes it until your next login. Run `./install.sh` to start it sooner.
+
+If you can't see the title, your menu bar may be too full to fit it. Close some
+other menu bar items to make room.
+
+To update, run this from the `claude-usage` folder:
+
+```bash
+git pull
+./install.sh
+```
+
+To remove everything:
+
+```bash
+./install.sh uninstall
+```
 
 ## Where the numbers come from
 
