@@ -54,6 +54,11 @@ There's nothing to run: keep using Claude Code and the title updates itself.
 - Percents run from green at 0% through yellow to red at 100%.
 - Click the title to see exact reset times, when the limits last changed, and
   token totals for today and the last 7 days.
+- Pick how the title reads under **Menu bar title** in the dropdown:
+  `S: 62% 3h · W: 33% 4d` (default), `S: 62% 3h · W: 33% Thu`,
+  `Session: 62% 3h · Weekly: 33% 4d`, `Session: 62% 3h · Weekly: 33% Thu`,
+  `S: 62% · W: 33%` or `62% · 33%`. The day layouts name the weekday the
+  weekly limit resets, or `today`. The choice is remembered.
 - Quit closes it until your next login. Run `./install.sh` to start it sooner.
 
 If you can't see the title, your menu bar may be too full to fit it. Close some
