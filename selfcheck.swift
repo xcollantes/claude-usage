@@ -153,6 +153,37 @@ func checkText(_ c: Checks) {
       now: now)
       == "S: 8% 5h · W: 30% 4d",
     "time left rounds up")
+  let live = Limits(fiveHour: window(23.4), sevenDay: window(41))
+  let layouts: [(TitleLayout, String)] = [
+    (.short, "S: 23% 1h · W: 41% 1d"),
+    (.shortDay, "S: 23% 1h · W: 41% today"),
+    (.long, "Session: 23% 1h · Weekly: 41% 1d"),
+    (.longDay, "Session: 23% 1h · Weekly: 41% today"),
+    (.percents, "S: 23% · W: 41%"),
+    (.bare, "23% · 41%"),
+  ]
+  for (layout, text) in layouts {
+    let shown = menuTitle(live, now: now, layout: layout)
+    c.expect(shown == text, "\(layout) layout: \(shown)")
+  }
+  c.expect(
+    menuTitle(nil, now: now, layout: .long) == "Session: – · Weekly: –",
+    "long layout without data")
+  let samples = Set(
+    TitleLayout.allCases.map {
+      menuTitle(sampleLimits(now: now), now: now, layout: $0)
+    })
+  c.expect(samples.count == TitleLayout.allCases.count, "previews differ")
+  let later = 1_000 + 3.5 * 86_400
+  let weekday = Date(timeIntervalSince1970: later)
+    .formatted(.dateTime.weekday(.abbreviated))
+  c.expect(
+    resetDay(later, now: now) == weekday && weekday != "today",
+    "a later reset shows its weekday: \(weekday)")
+  c.expect(
+    menuTitle(Limits(sevenDay: expired), now: now, layout: .shortDay)
+      == "S: – · W: 0%",
+    "an expired window shows no day")
 
   c.expect(percentHue(0) == 1.0 / 3, "0% is green")
   c.expect(percentHue(50) == 1.0 / 6, "50% is yellow")

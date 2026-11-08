@@ -208,19 +208,76 @@ func shownPercent(_ window: LimitWindow?, now: Date) -> Int? {
   return Int(window.usedPercentage.rounded())
 }
 
-/// The title, with the time left in each window. Time rounds up so a fresh
-/// window reads 5h or 7d, and a live one never reads 0.
-func menuTitle(_ limits: Limits?, now: Date) -> String {
-  func text(_ window: LimitWindow?, unit: Double, suffix: String) -> String {
+/// How the menu bar title reads, picked from the dropdown and saved.
+enum TitleLayout: String, CaseIterable {
+  case short, shortDay, long, longDay, percents, bare
+
+  private static let key = "titleLayout"
+
+  static var saved: TitleLayout {
+    get {
+      UserDefaults.standard.string(forKey: key)
+        .flatMap(TitleLayout.init(rawValue:)) ?? .short
+    }
+    set { UserDefaults.standard.set(newValue.rawValue, forKey: key) }
+  }
+
+  var labels: (session: String, week: String) {
+    switch self {
+    case .short, .shortDay, .percents: return ("S: ", "W: ")
+    case .long, .longDay: return ("Session: ", "Weekly: ")
+    case .bare: return ("", "")
+    }
+  }
+
+  var showsTime: Bool { self != .percents && self != .bare }
+
+  /// Shows the weekly reset as a weekday, such as Thu, instead of 4d.
+  var showsDay: Bool { self == .shortDay || self == .longDay }
+}
+
+/// The weekday a window resets, or "today", so a reset hours away isn't
+/// mistaken for one a week out.
+func resetDay(_ resetsAt: Double, now: Date) -> String {
+  let reset = Date(timeIntervalSince1970: resetsAt)
+  return Calendar.current.isDate(reset, inSameDayAs: now)
+    ? "today" : reset.formatted(.dateTime.weekday(.abbreviated))
+}
+
+/// The title, by default with the time left in each window. Time rounds up
+/// so a fresh window reads 5h or 7d, and a live one never reads 0.
+func menuTitle(
+  _ limits: Limits?, now: Date, layout: TitleLayout = .short
+) -> String {
+  func text(
+    _ window: LimitWindow?, unit: Double, suffix: String, day: Bool = false
+  ) -> String {
     guard let window, let percent = shownPercent(window, now: now) else {
       return "–"
     }
+    guard layout.showsTime else { return "\(percent)%" }
     let left = (window.resetsAt - now.timeIntervalSince1970) / unit
+    guard !day else {
+      // Past its reset, the next reset day isn't known yet.
+      return left > 0
+        ? "\(percent)% \(resetDay(window.resetsAt, now: now))" : "\(percent)%"
+    }
     return "\(percent)% \(Int(max(left, 0).rounded(.up)))\(suffix)"
   }
   let hours = text(limits?.fiveHour, unit: 3_600, suffix: "h")
-  let days = text(limits?.sevenDay, unit: 86_400, suffix: "d")
-  return "S: \(hours) · W: \(days)"
+  let days = text(
+    limits?.sevenDay, unit: 86_400, suffix: "d", day: layout.showsDay)
+  let (session, week) = layout.labels
+  return "\(session)\(hours) · \(week)\(days)"
+}
+
+/// Fixed numbers for previewing each layout, so the choices differ even
+/// before any limits arrive.
+func sampleLimits(now: Date) -> Limits {
+  let at = now.timeIntervalSince1970
+  return Limits(
+    fiveHour: LimitWindow(usedPercentage: 62, resetsAt: at + 2.5 * 3_600),
+    sevenDay: LimitWindow(usedPercentage: 33, resetsAt: at + 3.5 * 86_400))
 }
 
 /// Hue for a percentage: green at 0, through yellow, to red at 100. Moving
@@ -324,7 +381,7 @@ func printSummary() {
   let ledger = TokenLedger()
   ledger.scan(projects: Config.projects, now: now)
   let limits = loadLimits(Config.limitsFile)
-  print(menuTitle(limits, now: now))
+  print(menuTitle(limits, now: now, layout: .saved))
   let tokens = ledger.snapshot(now: now, calendar: .current)
   for row in menuSections(limits: limits, tokens: tokens, now: now).joined() {
     print(row)
@@ -363,6 +420,10 @@ final class MenuBarApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
       section.forEach { menu.addItem(infoItem($0)) }
       menu.addItem(.separator())
     }
+    let layouts = NSMenuItem(
+      title: "Menu bar title", action: nil, keyEquivalent: "")
+    layouts.submenu = layoutMenu()
+    menu.addItem(layouts)
     let quit = NSMenuItem(
       title: "Quit", action: #selector(NSApplication.terminate(_:)),
       keyEquivalent: "q")
@@ -375,6 +436,31 @@ final class MenuBarApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let item = NSMenuItem(title: text, action: nil, keyEquivalent: "")
     item.attributedTitle = styled(text, font: .menuFont(ofSize: 0))
     return item
+  }
+
+  /// One item per layout, titled with a sample of how it reads.
+  private func layoutMenu() -> NSMenu {
+    let submenu = NSMenu()
+    let now = Date()
+    for layout in TitleLayout.allCases {
+      let text = menuTitle(sampleLimits(now: now), now: now, layout: layout)
+      let item = NSMenuItem(
+        title: text, action: #selector(pickLayout(_:)), keyEquivalent: "")
+      item.attributedTitle = styled(text, font: .menuFont(ofSize: 0))
+      item.target = self
+      item.representedObject = layout.rawValue
+      item.state = layout == .saved ? .on : .off
+      submenu.addItem(item)
+    }
+    return submenu
+  }
+
+  @objc private func pickLayout(_ item: NSMenuItem) {
+    guard let raw = item.representedObject as? String,
+      let layout = TitleLayout(rawValue: raw)
+    else { return }
+    TitleLayout.saved = layout
+    updateTitle()
   }
 
   private func refresh() {
@@ -393,7 +479,8 @@ final class MenuBarApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
   }
 
   private func updateTitle() {
-    let title = menuTitle(loadLimits(Config.limitsFile), now: Date())
+    let title = menuTitle(
+      loadLimits(Config.limitsFile), now: Date(), layout: .saved)
     statusItem.button?.attributedTitle = styled(
       title, font: .menuBarFont(ofSize: 0))
   }
