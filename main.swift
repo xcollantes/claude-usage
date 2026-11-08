@@ -210,7 +210,7 @@ func shownPercent(_ window: LimitWindow?, now: Date) -> Int? {
 
 /// How the menu bar title reads, picked from the dropdown and saved.
 enum TitleLayout: String, CaseIterable {
-  case short, long, percents, bare
+  case short, shortDay, long, longDay, percents, bare
 
   private static let key = "titleLayout"
 
@@ -224,13 +224,24 @@ enum TitleLayout: String, CaseIterable {
 
   var labels: (session: String, week: String) {
     switch self {
-    case .short, .percents: return ("S: ", "W: ")
-    case .long: return ("Session: ", "Weekly: ")
+    case .short, .shortDay, .percents: return ("S: ", "W: ")
+    case .long, .longDay: return ("Session: ", "Weekly: ")
     case .bare: return ("", "")
     }
   }
 
-  var showsTime: Bool { self == .short || self == .long }
+  var showsTime: Bool { self != .percents && self != .bare }
+
+  /// Shows the weekly reset as a weekday, such as Thu, instead of 4d.
+  var showsDay: Bool { self == .shortDay || self == .longDay }
+}
+
+/// The weekday a window resets, or "today", so a reset hours away isn't
+/// mistaken for one a week out.
+func resetDay(_ resetsAt: Double, now: Date) -> String {
+  let reset = Date(timeIntervalSince1970: resetsAt)
+  return Calendar.current.isDate(reset, inSameDayAs: now)
+    ? "today" : reset.formatted(.dateTime.weekday(.abbreviated))
 }
 
 /// The title, by default with the time left in each window. Time rounds up
@@ -238,16 +249,24 @@ enum TitleLayout: String, CaseIterable {
 func menuTitle(
   _ limits: Limits?, now: Date, layout: TitleLayout = .short
 ) -> String {
-  func text(_ window: LimitWindow?, unit: Double, suffix: String) -> String {
+  func text(
+    _ window: LimitWindow?, unit: Double, suffix: String, day: Bool = false
+  ) -> String {
     guard let window, let percent = shownPercent(window, now: now) else {
       return "–"
     }
     guard layout.showsTime else { return "\(percent)%" }
     let left = (window.resetsAt - now.timeIntervalSince1970) / unit
+    guard !day else {
+      // Past its reset, the next reset day isn't known yet.
+      return left > 0
+        ? "\(percent)% \(resetDay(window.resetsAt, now: now))" : "\(percent)%"
+    }
     return "\(percent)% \(Int(max(left, 0).rounded(.up)))\(suffix)"
   }
   let hours = text(limits?.fiveHour, unit: 3_600, suffix: "h")
-  let days = text(limits?.sevenDay, unit: 86_400, suffix: "d")
+  let days = text(
+    limits?.sevenDay, unit: 86_400, suffix: "d", day: layout.showsDay)
   let (session, week) = layout.labels
   return "\(session)\(hours) · \(week)\(days)"
 }
